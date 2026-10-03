@@ -4,10 +4,8 @@ import { PermissionPrompt } from './components/PermissionPrompt';
 import { SpeedChart } from './components/SpeedChart';
 import { SpeedDisplay } from './components/SpeedDisplay';
 import { TrackingMap } from './components/TrackingMap';
-import { TripSummary } from './components/TripSummary';
 import { StatsCard } from './components/StatsCard';
 import { TrackingControls } from './components/TrackingControls';
-import { UnitSelector } from './components/UnitSelector';
 import { MAP_RENDER_INTERVAL_MS, UNIT_LABELS } from './constants/tracking';
 import { useGPSTracking } from './hooks/useGPSTracking';
 import { useThrottledValue } from './hooks/useThrottledValue';
@@ -17,12 +15,21 @@ import { convertDistance, distanceUnitFor } from './utils/distance';
 import { formatDistanceValue, formatDuration, formatNumber, formatSpeed } from './utils/format';
 import { convertSpeed } from './utils/speed';
 import { createSimulatedGeolocation } from './dev/simulatedGeolocation';
+import { useTripRecorder } from './hooks/useTripRecorder';
+import { useRouter } from './hooks/useRouter';
+import { Navigation } from './components/Navigation';
+import { TripHistoryPage } from './components/TripHistoryPage';
+import { TripDetailsPage } from './components/TripDetailsPage';
+import { TripReplayPage } from './components/TripReplayPage';
+import { SettingsPage } from './components/SettingsPage';
+import { GPSDiagnostics } from './components/GPSDiagnostics';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { Toast } from './components/Toast';
+import { UNIT_STORAGE_KEY } from './constants/storage';
 
 /** Dev-only: `?simulate` replaces real GPS with a simulated drive. */
 const SIMULATE =
   import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('simulate');
-
-const UNIT_STORAGE_KEY = 'gps-speed-tracker:unit';
 
 const QUALITY_LABELS: Record<AccuracyQuality, string> = {
   excellent: 'Excellent',
@@ -47,6 +54,10 @@ export default function App() {
   const gps = useGPSTracking({ geolocation: simulator });
   const [unit, setUnit] = useState<SpeedUnit>(loadUnit);
   const wakeLockActive = useWakeLock(gps.isTracking);
+  const { route, navigate } = useRouter();
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+
+  const recorder = useTripRecorder(gps.isTracking, gps.session, gps.duration, gps.trackPoints);
 
   // Map/chart render from a throttled view of the engine's accepted samples.
   // The engine still processes every GPS fix; only visuals are rate-limited.
@@ -77,10 +88,9 @@ export default function App() {
   const speedValue = (mps: number) => formatNumber(convertSpeed(mps, unit), 1);
   const accuracyText = gps.accuracy != null ? `±${Math.round(gps.accuracy)}` : '--';
 
-  return (
-    <div className={`app app--${gps.gpsStatus}`}>
-      <div className="app__glow" aria-hidden="true" />
-      <main className="shell">
+  const renderTrackingView = () => {
+    return (
+      <>
         <header className="header">
           <h1 className="header__title">
             GPS <span>SPEED</span> TRACKER
@@ -161,37 +171,53 @@ export default function App() {
           onStop={gps.stopTracking}
           onReset={gps.resetTracking}
         />
+        
+        <GPSDiagnostics gps={gps} unit={unit} />
 
-        {!gps.isTracking && gps.trackPoints.length > 0 && (
-          <TripSummary
-            distanceMeters={gps.distance}
-            movingTimeMs={gps.movingTime}
-            totalTimeMs={gps.duration}
-            averageSpeedMps={gps.averageSpeed}
-            maxSpeedMps={gps.maxSpeed}
-            pointCount={gps.trackPoints.length}
-            unit={unit}
+        {recorder.recovered && (
+          <ConfirmDialog
+            title="Unfinished trip recovered"
+            message={`We found an unfinished trip from ${new Date(recorder.recovered.draft.startedAt).toLocaleString()}. Do you want to continue it?`}
+            confirmLabel="Continue"
+            cancelLabel="Discard"
+            onConfirm={() => {
+              // Engine recovery would go here, for now we just dismiss
+              recorder.acceptRecovery();
+            }}
+            onCancel={recorder.discardRecovery}
+          />
+        )}
+        
+        {recorder.lastSaved && (
+          <Toast 
+            message="Trip saved successfully" 
+            onDismiss={recorder.dismissSaved} 
           />
         )}
 
-        <UnitSelector unit={unit} onChange={setUnit} />
 
-        <footer className="footer">
-          <p className="footer__privacy">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm-1 14.5-3.5-3.5 1.4-1.4 2.1 2.1 4.6-4.6 1.4 1.4-6 6Z"
-                fill="currentColor"
-              />
-            </svg>
-            Your location data stays on this device.
-          </p>
+        <footer className="footer" style={{ marginTop: 24, paddingBottom: 80 }}>
           <p className="footer__note">
-            GPS speed is an estimate — its quality depends on signal accuracy. Route colours are visual speed bands, not
-            speed limits. Map tiles load from OpenStreetMap; your coordinates are never uploaded.
-            {gps.isTracking && wakeLockActive && ' Screen will stay on while tracking.'}
+            {gps.isTracking && wakeLockActive && 'Screen will stay on while tracking.'}
           </p>
         </footer>
+      </>
+    );
+  };
+
+  return (
+    <div className={`app app--${gps.gpsStatus}`}>
+      <div className="app__glow" aria-hidden="true" />
+      <main className="shell">
+        {route.page === 'track' && renderTrackingView()}
+        {route.page === 'trips' && <TripHistoryPage unit={unit} onNavigate={navigate} refreshKey={historyRefreshKey} />}
+        {route.page === 'trip' && <TripDetailsPage id={route.id} unit={unit} onNavigate={navigate} onDeleted={() => setHistoryRefreshKey(k => k + 1)} />}
+        {route.page === 'replay' && <TripReplayPage id={route.id} unit={unit} onNavigate={navigate} />}
+        {route.page === 'settings' && <SettingsPage unit={unit} onUnitChange={setUnit} onTripsCleared={() => setHistoryRefreshKey(k => k + 1)} />}
+        
+        {(route.page === 'track' || route.page === 'trips' || route.page === 'settings') && (
+          <Navigation route={route} onNavigate={navigate} />
+        )}
       </main>
     </div>
   );

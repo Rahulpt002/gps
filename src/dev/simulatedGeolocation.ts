@@ -61,16 +61,24 @@ export function createSimulatedGeolocation(intervalMs = 1000): GeolocationProvid
     const latitude = START.latitude + north / METERS_PER_DEG_LAT;
     const longitude =
       START.longitude + east / (METERS_PER_DEG_LAT * Math.cos((START.latitude * Math.PI) / 180));
+      
+    // Simulate varying terrain altitude (e.g., going up a small hill)
+    const baseAltitude = 250;
+    const hill = 80 * Math.sin(traveled / 300);
+    const altitude = baseAltitude + hill + gaussian() * 1.5;
+    
+    // Simulate heading (only accurate when moving)
+    const heading = speed > 1 ? (HEADING_RAD * 180 / Math.PI + gaussian() * 5 + 360) % 360 : null;
 
     return {
       coords: {
         latitude,
         longitude,
         accuracy,
-        speed: null,
-        heading: null,
-        altitude: null,
-        altitudeAccuracy: null,
+        speed: speed > 0.5 ? speed : null, // mix of null and values to test fallback
+        heading,
+        altitude,
+        altitudeAccuracy: 3,
       },
       timestamp: Date.now(),
     } as unknown as GeolocationPosition;

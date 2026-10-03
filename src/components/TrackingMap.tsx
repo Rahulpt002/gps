@@ -41,6 +41,7 @@ import {
 import { MapControls } from './MapControls';
 import { SpeedLegend } from './SpeedLegend';
 import { TrackPointPopup } from './TrackPointPopup';
+import { CurrentPositionPopup } from './CurrentPositionPopup';
 
 export interface TrackingMapProps {
   points: TrackPoint[];
@@ -118,6 +119,7 @@ export const TrackingMap = memo(function TrackingMap({
   const [map, setMap] = useState<L.Map | null>(null);
   const [autoFollow, setAutoFollow] = useState(true);
   const [view, setView] = useState<ViewState | null>(null);
+  const [showCurrentPopup, setShowCurrentPopup] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const programmaticRef = useRef(false);
   const programmaticTimer = useRef<number | undefined>(undefined);
@@ -251,6 +253,11 @@ export const TrackingMap = memo(function TrackingMap({
   const selected = selection && points[selection.index] ? points[selection.index]! : null;
   const showPopup = selection?.source === 'map' && selected !== null;
 
+  // Clear current popup if a track point is selected
+  useEffect(() => {
+    if (showPopup) setShowCurrentPopup(false);
+  }, [showPopup]);
+
   return (
     <div className="map" ref={wrapperRef}>
       <MapContainer
@@ -333,8 +340,12 @@ export const TrackingMap = memo(function TrackingMap({
             <Marker
               position={[currentPosition.latitude, currentPosition.longitude]}
               icon={currentIcon}
-              interactive={false}
+              interactive={true}
               zIndexOffset={1000}
+              eventHandlers={{ click: () => {
+                setShowCurrentPopup(true);
+                onSelect(null, 'map');
+              }}}
             />
           </>
         )}
@@ -362,6 +373,14 @@ export const TrackingMap = memo(function TrackingMap({
           total={points.length}
           unit={unit}
           onClose={() => onSelect(null, 'map')}
+        />
+      )}
+
+      {showCurrentPopup && currentPosition && (
+        <CurrentPositionPopup
+          point={currentPosition}
+          unit={unit}
+          onClose={() => setShowCurrentPopup(false)}
         />
       )}
     </div>
