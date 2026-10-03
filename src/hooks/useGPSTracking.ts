@@ -19,6 +19,7 @@ import type {
   TrackingConfig,
   TrackingSession,
   TrackingStatus,
+  TrackPoint,
   WatchOptions,
 } from '../types/gps';
 import {
@@ -65,6 +66,8 @@ function toGPSPoint(pos: GeolocationPosition): GPSPoint {
     longitude: pos.coords.longitude,
     accuracy: pos.coords.accuracy,
     speed: pos.coords.speed,
+    altitude: pos.coords.altitude,
+    heading: pos.coords.heading,
     timestamp: pos.timestamp,
   };
 }
@@ -117,6 +120,8 @@ export interface GPSTracking {
   isSignalStale: boolean;
   hasData: boolean;
   session: TrackingSession;
+  /** Accepted samples only (same array instance until a new point is accepted). */
+  trackPoints: TrackPoint[];
   startTracking: () => void;
   stopTracking: () => void;
   resetTracking: () => void;
@@ -325,6 +330,7 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
     isSignalStale,
     hasData: session.acceptedPoints > 0 || timer.accumulatedMs > 0 || timer.runningSince !== null,
     session,
+    trackPoints: session.trackPoints,
     startTracking,
     stopTracking,
     resetTracking,

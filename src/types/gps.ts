@@ -13,9 +13,54 @@ export interface GPSPoint {
   accuracy?: number;
   /** Device-reported ground speed in m/s (often null in browsers). */
   speed?: number | null;
+  /** Meters above the WGS84 ellipsoid, when the device provides it. */
+  altitude?: number | null;
+  /** Degrees clockwise from true north, when the device provides it. */
+  heading?: number | null;
+}
+
+/**
+ * One ACCEPTED tracking sample: coordinate + timestamp + accuracy + speed.
+ * `speed` is the engine's accepted raw/derived speed in m/s (not the smoothed
+ * display speed), so each sample is an individual measurement.
+ */
+export interface TrackPoint {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+  /** Accepted speed in m/s at this sample. */
+  speed: number;
+  /** Accuracy radius in meters, null if the device didn't report one. */
+  accuracy: number | null;
+  altitude: number | null;
+  heading: number | null;
+  /**
+   * Continuous-route segment id. Increments on stop → resume and on resync,
+   * so the route is never drawn across a gap that wasn't measured.
+   */
+  segment: number;
+}
+
+export type SpeedCategoryKey = 'slow' | 'moderate' | 'fast' | 'veryFast' | 'extreme';
+
+/** A visualization band for route colouring. Not a legal speed limit. */
+export interface SpeedCategory {
+  key: SpeedCategoryKey;
+  label: string;
+  /** Inclusive lower bound in m/s. */
+  minMps: number;
+  /** Exclusive upper bound in m/s; null = no upper bound. */
+  maxMps: number | null;
+  color: string;
 }
 
 export type SpeedUnit = 'kmh' | 'mph' | 'mps';
+
+/** Which sample is highlighted, and which view initiated it (map ↔ chart sync). */
+export interface TrackSelection {
+  index: number;
+  source: 'map' | 'chart';
+}
 
 /** High-level state shown in the status pill. */
 export type TrackingStatus =
@@ -92,6 +137,10 @@ export interface TrackingSession {
   consecutiveRejections: number;
   acceptedPoints: number;
   rejectedPoints: number;
+  /** Every accepted sample, in order. Rejected fixes never appear here. */
+  trackPoints: TrackPoint[];
+  /** Segment id assigned to newly accepted points. */
+  segmentIndex: number;
 }
 
 export type PointRejectionReason = 'invalid' | 'low-accuracy' | 'stale' | 'outlier';

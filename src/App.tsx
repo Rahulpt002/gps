@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { GPSStatus } from './components/GPSStatus';
 import { PermissionPrompt } from './components/PermissionPrompt';
+import { SpeedChart } from './components/SpeedChart';
 import { SpeedDisplay } from './components/SpeedDisplay';
+import { TrackingMap } from './components/TrackingMap';
+import { TripSummary } from './components/TripSummary';
 import { StatsCard } from './components/StatsCard';
 import { TrackingControls } from './components/TrackingControls';
 import { UnitSelector } from './components/UnitSelector';
-import { UNIT_LABELS } from './constants/tracking';
+import { MAP_RENDER_INTERVAL_MS, UNIT_LABELS } from './constants/tracking';
 import { useGPSTracking } from './hooks/useGPSTracking';
+import { useThrottledValue } from './hooks/useThrottledValue';
 import { useWakeLock } from './hooks/useWakeLock';
-import type { AccuracyQuality, SpeedUnit } from './types/gps';
+import type { AccuracyQuality, SpeedUnit, TrackSelection } from './types/gps';
 import { convertDistance, distanceUnitFor } from './utils/distance';
-import { formatDistanceValue, formatDuration, formatNumber } from './utils/format';
+import { formatDistanceValue, formatDuration, formatNumber, formatSpeed } from './utils/format';
 import { convertSpeed } from './utils/speed';
 import { createSimulatedGeolocation } from './dev/simulatedGeolocation';
 
@@ -43,6 +47,23 @@ export default function App() {
   const gps = useGPSTracking({ geolocation: simulator });
   const [unit, setUnit] = useState<SpeedUnit>(loadUnit);
   const wakeLockActive = useWakeLock(gps.isTracking);
+
+  // Map/chart render from a throttled view of the engine's accepted samples.
+  // The engine still processes every GPS fix; only visuals are rate-limited.
+  const trackPoints = useThrottledValue(gps.trackPoints, MAP_RENDER_INTERVAL_MS, !gps.isTracking);
+  const currentPosition = gps.isTracking ? (trackPoints[trackPoints.length - 1] ?? null) : null;
+  const currentSpeedLabel =
+    gps.isTracking && !gps.isSignalStale ? `${formatSpeed(gps.currentSpeed, unit, 0)} ${UNIT_LABELS[unit]}` : null;
+
+  const [rawSelection, setSelection] = useState<TrackSelection | null>(null);
+  const selection = rawSelection && rawSelection.index < trackPoints.length ? rawSelection : null;
+  const handleSelect = useCallback((index: number | null, source: TrackSelection['source']) => {
+    setSelection((prev) => {
+      if (index !== null) return { index, source };
+      // Clearing from the chart (mouse leave) must not close a map popup.
+      return prev && prev.source !== source ? prev : null;
+    });
+  }, []);
 
   useEffect(() => {
     try {
@@ -88,6 +109,19 @@ export default function App() {
           stale={gps.isSignalStale}
         />
 
+        <section className="map-panel" aria-label="Route map and speed timeline">
+          <TrackingMap
+            points={trackPoints}
+            currentPosition={currentPosition}
+            currentSpeedLabel={currentSpeedLabel}
+            isTracking={gps.isTracking}
+            unit={unit}
+            selection={selection}
+            onSelect={handleSelect}
+          />
+          <SpeedChart points={trackPoints} unit={unit} selection={selection} onSelect={handleSelect} />
+        </section>
+
         <section className="stats" aria-label="Session statistics">
           <StatsCard id="stat-max" label="MAX" value={speedValue(gps.maxSpeed)} unit={unitLabel} />
           <StatsCard id="stat-avg" label="AVG" value={speedValue(gps.averageSpeed)} unit={unitLabel} />
@@ -128,6 +162,18 @@ export default function App() {
           onReset={gps.resetTracking}
         />
 
+        {!gps.isTracking && gps.trackPoints.length > 0 && (
+          <TripSummary
+            distanceMeters={gps.distance}
+            movingTimeMs={gps.movingTime}
+            totalTimeMs={gps.duration}
+            averageSpeedMps={gps.averageSpeed}
+            maxSpeedMps={gps.maxSpeed}
+            pointCount={gps.trackPoints.length}
+            unit={unit}
+          />
+        )}
+
         <UnitSelector unit={unit} onChange={setUnit} />
 
         <footer className="footer">
@@ -141,7 +187,8 @@ export default function App() {
             Your location data stays on this device.
           </p>
           <p className="footer__note">
-            GPS speed is an estimate — its quality depends on signal accuracy.
+            GPS speed is an estimate — its quality depends on signal accuracy. Route colours are visual speed bands, not
+            speed limits. Map tiles load from OpenStreetMap; your coordinates are never uploaded.
             {gps.isTracking && wakeLockActive && ' Screen will stay on while tracking.'}
           </p>
         </footer>

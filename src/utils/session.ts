@@ -13,6 +13,7 @@ import type {
   SessionTimer,
   TrackingConfig,
   TrackingSession,
+  TrackPoint,
 } from '../types/gps';
 import { movementThreshold } from './distance';
 import { haversineDistance, isValidCoordinate } from './geo';
@@ -31,6 +32,8 @@ export function createSession(): TrackingSession {
     consecutiveRejections: 0,
     acceptedPoints: 0,
     rejectedPoints: 0,
+    trackPoints: [],
+    segmentIndex: 0,
   };
 }
 
@@ -46,12 +49,36 @@ export function beginSegment(session: TrackingSession): TrackingSession {
     currentSpeedMps: 0,
     lastRawSpeedMps: 0,
     consecutiveRejections: 0,
+    segmentIndex: session.trackPoints.length > 0 ? session.segmentIndex + 1 : session.segmentIndex,
   };
 }
 
 /** Called when tracking stops: speed drops to zero, stats are preserved. */
 export function endSegment(session: TrackingSession): TrackingSession {
   return { ...session, currentSpeedMps: 0, lastRawSpeedMps: 0 };
+}
+
+/** Build the stored sample for an accepted GPS fix. */
+export function toTrackPoint(point: GPSPoint, speedMps: number, segment: number): TrackPoint {
+  return {
+    latitude: point.latitude,
+    longitude: point.longitude,
+    timestamp: point.timestamp,
+    speed: speedMps,
+    accuracy: typeof point.accuracy === 'number' && Number.isFinite(point.accuracy) ? point.accuracy : null,
+    altitude: typeof point.altitude === 'number' && Number.isFinite(point.altitude) ? point.altitude : null,
+    heading: typeof point.heading === 'number' && Number.isFinite(point.heading) ? point.heading : null,
+    segment,
+  };
+}
+
+function appendTrackPoint(
+  session: TrackingSession,
+  point: GPSPoint,
+  speedMps: number,
+  segment: number = session.segmentIndex,
+): TrackPoint[] {
+  return [...session.trackPoints, toTrackPoint(point, speedMps, segment)];
 }
 
 function reject(session: TrackingSession, reason: PointRejectionReason): ProcessResult {
@@ -107,6 +134,7 @@ export function processPoint(
         maxSpeedMps: moving ? Math.max(base.maxSpeedMps, speed) : base.maxSpeedMps,
         consecutiveRejections: 0,
         acceptedPoints: base.acceptedPoints + 1,
+        trackPoints: appendTrackPoint(base, point, speed),
       },
       accepted: true,
     };
@@ -129,9 +157,11 @@ export function processPoint(
       return reject(base, 'outlier');
     }
     // Persistent disagreement: our reference is probably wrong. Resync without
-    // crediting distance or max speed.
+    // crediting distance or max speed, and start a new route segment so no
+    // line is drawn across the unmeasured jump.
     const resyncSpeed =
       deviceSpeed !== null && deviceSpeed <= config.maxPlausibleSpeedMps ? deviceSpeed : 0;
+    const segment = base.trackPoints.length > 0 ? base.segmentIndex + 1 : base.segmentIndex;
     return {
       session: {
         ...base,
@@ -141,6 +171,8 @@ export function processPoint(
         currentSpeedMps: displaySpeed(base.currentSpeedMps, resyncSpeed, config),
         consecutiveRejections: 0,
         acceptedPoints: base.acceptedPoints + 1,
+        segmentIndex: segment,
+        trackPoints: appendTrackPoint(base, point, resyncSpeed, segment),
       },
       accepted: true,
     };
@@ -175,6 +207,7 @@ export function processPoint(
       lastSample: point,
       consecutiveRejections: 0,
       acceptedPoints: base.acceptedPoints + 1,
+      trackPoints: appendTrackPoint(base, point, rawSpeed),
     },
     accepted: true,
   };
