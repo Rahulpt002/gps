@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GPSStatus } from './components/GPSStatus';
 import { PermissionPrompt } from './components/PermissionPrompt';
 import { SpeedDisplay } from './components/SpeedDisplay';
@@ -12,6 +12,11 @@ import type { AccuracyQuality, SpeedUnit } from './types/gps';
 import { convertDistance, distanceUnitFor } from './utils/distance';
 import { formatDistanceValue, formatDuration, formatNumber } from './utils/format';
 import { convertSpeed } from './utils/speed';
+import { createSimulatedGeolocation } from './dev/simulatedGeolocation';
+
+/** Dev-only: `?simulate` replaces real GPS with a simulated drive. */
+const SIMULATE =
+  import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('simulate');
 
 const UNIT_STORAGE_KEY = 'gps-speed-tracker:unit';
 
@@ -34,7 +39,8 @@ function loadUnit(): SpeedUnit {
 }
 
 export default function App() {
-  const gps = useGPSTracking();
+  const simulator = useMemo(() => (SIMULATE ? createSimulatedGeolocation() : undefined), []);
+  const gps = useGPSTracking({ geolocation: simulator });
   const [unit, setUnit] = useState<SpeedUnit>(loadUnit);
   const wakeLockActive = useWakeLock(gps.isTracking);
 
@@ -59,6 +65,11 @@ export default function App() {
             GPS <span>SPEED</span> TRACKER
           </h1>
           <GPSStatus status={gps.gpsStatus} />
+          {SIMULATE && (
+            <span className="sim-badge" id="simulation-badge">
+              SIMULATED GPS — DEV MODE
+            </span>
+          )}
         </header>
 
         <PermissionPrompt

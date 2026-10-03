@@ -85,9 +85,14 @@ function toGPSError(err: GeolocationPositionError): GPSError {
 const isGeolocationSupported = (): boolean =>
   typeof navigator !== 'undefined' && 'geolocation' in navigator && !!navigator.geolocation;
 
+/** Minimal subset of the Geolocation API the hook depends on. */
+export type GeolocationProvider = Pick<Geolocation, 'watchPosition' | 'clearWatch' | 'getCurrentPosition'>;
+
 export interface UseGPSTrackingOptions {
   config?: TrackingConfig;
   watchOptions?: WatchOptions;
+  /** Override the location source (e.g. a simulator). Defaults to `navigator.geolocation`. */
+  geolocation?: GeolocationProvider;
 }
 
 export interface GPSTracking {
@@ -121,7 +126,8 @@ export interface GPSTracking {
 export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking {
   const config = options.config ?? DEFAULT_TRACKING_CONFIG;
   const watchOptions = options.watchOptions ?? DEFAULT_WATCH_OPTIONS;
-  const isSupported = isGeolocationSupported();
+  const injected = options.geolocation;
+  const isSupported = !!injected || isGeolocationSupported();
 
   const [session, setSession] = useState<TrackingSession>(createSession);
   const [timer, setTimer] = useState(createTimer);
@@ -146,8 +152,28 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
     setSession(next);
   }, []);
 
+  /** Returns the provider, or sets an error state and returns null. */
+  const acquireProvider = useCallback((): GeolocationProvider | null => {
+    if (injected) return injected;
+    if (!isGeolocationSupported()) {
+      setStatus('unsupported');
+      setError(ERRORS.unsupported!);
+      return null;
+    }
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setStatus('error');
+      setError(ERRORS.insecure!);
+      return null;
+    }
+    return navigator.geolocation;
+  }, [injected]);
+
   // Observe permission state where the Permissions API is available.
   useEffect(() => {
+    if (injected) {
+      setPermission('granted');
+      return;
+    }
     if (!isSupported || !navigator.permissions?.query) return;
     let cancelled = false;
     let permStatus: PermissionStatus | null = null;
@@ -165,12 +191,15 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
       cancelled = true;
       permStatus?.removeEventListener('change', onChange);
     };
-  }, [isSupported]);
+  }, [isSupported, injected]);
+
+  const activeProviderRef = useRef<GeolocationProvider | null>(null);
 
   const clearWatch = useCallback(() => {
     if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+      activeProviderRef.current?.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
+      activeProviderRef.current = null;
     }
   }, []);
 
@@ -213,17 +242,9 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
   );
 
   const startTracking = useCallback(() => {
-    if (!isGeolocationSupported()) {
-      setStatus('unsupported');
-      setError(ERRORS.unsupported!);
-      return;
-    }
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      setStatus('error');
-      setError(ERRORS.insecure!);
-      return;
-    }
     if (watchIdRef.current !== null) return;
+    const geo = acquireProvider();
+    if (!geo) return;
 
     const t = Date.now();
     commit(beginSegment(sessionRef.current));
@@ -234,8 +255,9 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
     setSegmentStartedAt(t);
     setNow(t);
     setTimer((prev) => startTimer(prev, t));
-    watchIdRef.current = navigator.geolocation.watchPosition(handlePosition, handleError, watchOptions);
-  }, [commit, handlePosition, handleError, watchOptions]);
+    activeProviderRef.current = geo;
+    watchIdRef.current = geo.watchPosition(handlePosition, handleError, watchOptions);
+  }, [acquireProvider, commit, handlePosition, handleError, watchOptions]);
 
   const stopTracking = useCallback(() => {
     if (watchIdRef.current === null) return;
@@ -253,17 +275,9 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
   }, [commit]);
 
   const requestPermission = useCallback(() => {
-    if (!isGeolocationSupported()) {
-      setStatus('unsupported');
-      setError(ERRORS.unsupported!);
-      return;
-    }
-    if (!window.isSecureContext) {
-      setStatus('error');
-      setError(ERRORS.insecure!);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
+    const geo = acquireProvider();
+    if (!geo) return;
+    geo.getCurrentPosition(
       (pos) => {
         setPermission('granted');
         setError(null);
@@ -277,7 +291,7 @@ export function useGPSTracking(options: UseGPSTrackingOptions = {}): GPSTracking
       },
       watchOptions,
     );
-  }, [commit, watchOptions]);
+  }, [acquireProvider, commit, watchOptions]);
 
   // Tick the clock while tracking so duration / staleness update.
   useEffect(() => {

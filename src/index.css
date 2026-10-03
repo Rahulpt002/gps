@@ -190,6 +190,16 @@ button {
   animation: blink 1.2s ease-in-out infinite;
 }
 
+.sim-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px dashed hsla(280, 90%, 70%, 0.6);
+  color: hsl(280, 90%, 78%);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
 /* ==========================================================================
    Notice
    ========================================================================== */
