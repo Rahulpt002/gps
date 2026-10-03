@@ -208,17 +208,17 @@ export default function App() {
   return (
     <div className={`app app--${gps.gpsStatus}`}>
       <div className="app__glow" aria-hidden="true" />
-      <main className="shell">
+      <main className={`shell ${route.page === 'track' ? 'shell--track' : (route.page === 'trip' || route.page === 'replay' ? 'shell--trip' : '')}`}>
         {route.page === 'track' && renderTrackingView()}
         {route.page === 'trips' && <TripHistoryPage unit={unit} onNavigate={navigate} refreshKey={historyRefreshKey} />}
         {route.page === 'trip' && <TripDetailsPage id={route.id} unit={unit} onNavigate={navigate} onDeleted={() => setHistoryRefreshKey(k => k + 1)} />}
         {route.page === 'replay' && <TripReplayPage id={route.id} unit={unit} onNavigate={navigate} />}
         {route.page === 'settings' && <SettingsPage unit={unit} onUnitChange={setUnit} onTripsCleared={() => setHistoryRefreshKey(k => k + 1)} />}
         
-        {(route.page === 'track' || route.page === 'trips' || route.page === 'settings') && (
-          <Navigation route={route} onNavigate={navigate} />
-        )}
       </main>
+      {(route.page === 'track' || route.page === 'trips' || route.page === 'settings') && (
+        <Navigation route={route} onNavigate={navigate} />
+      )}
     </div>
   );
 }

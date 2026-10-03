@@ -1120,7 +1120,7 @@ button {
  * Used on desktop/tablet landscape and on phones mounted in landscape.
  */
 @media (min-width: 960px), (orientation: landscape) and (max-height: 520px) {
-  .shell {
+  .shell--track {
     max-width: 1280px;
     display: grid;
     grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
@@ -1179,7 +1179,7 @@ button {
 
 /* Landscape phone: keep the map as tall as the screen allows. */
 @media (orientation: landscape) and (max-height: 520px) {
-  .shell {
+  .shell--track {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
     gap: 12px 18px;
   }
@@ -1693,4 +1693,31 @@ button {
 }
 .toast__close:hover {
   opacity: 1;
+}
+
+@media (min-width: 960px) {
+  .shell--trip {
+    max-width: 1280px;
+  }
+  .shell--trip .page {
+    display: grid;
+    grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+  .shell--trip .page > * {
+    grid-column: 1;
+  }
+  .shell--trip .page > .page__header {
+    grid-column: 1 / -1;
+  }
+  .shell--trip .page > .map-panel {
+    grid-column: 2;
+    grid-row: 2 / span 10;
+    position: sticky;
+    top: 16px;
+  }
+  .shell--trip .map {
+    height: min(70vh, 800px);
+  }
 }
