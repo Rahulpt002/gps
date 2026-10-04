@@ -1,0 +1,23 @@
+{
+  "cli": {
+    "version": ">= 7.0.0"
+  },
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EAS_BUILD_WORKINGDIR": "apps/mobile"
+      }
+    },
+    "production": {
+      "env": {
+        "EAS_BUILD_WORKINGDIR": "apps/mobile"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
