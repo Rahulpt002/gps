@@ -15,16 +15,18 @@ export default function RootLayout() {
   }, []);
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#208AEF' },
+          headerStyle: { backgroundColor: '#111' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
+          contentStyle: { backgroundColor: '#1a1a1a' },
         }}
       >
         <Stack.Screen name="index" options={{ title: 'GPS Tracker' }} />
         <Stack.Screen name="trips" options={{ title: 'Trip History' }} />
+        <Stack.Screen name="trip/[id]" options={{ title: 'Trip Details' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
     </>

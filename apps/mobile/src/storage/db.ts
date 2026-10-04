@@ -2,11 +2,17 @@ import * as SQLite from 'expo-sqlite';
 import type { TrackPoint, Trip, TripMeta } from '@gps/core';
 import * as Crypto from 'expo-crypto';
 
-// Initialize the database synchronously
-const db = SQLite.openDatabaseSync('gps_tracker.db');
+let db: SQLite.SQLiteDatabase | null = null;
+
+function getDb(): SQLite.SQLiteDatabase {
+  if (!db) {
+    db = SQLite.openDatabaseSync('gps_tracker.db');
+  }
+  return db;
+}
 
 export function initDB() {
-  db.execSync(`
+  getDb().execSync(`
     CREATE TABLE IF NOT EXISTS trips (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -54,7 +60,8 @@ export function initDB() {
 }
 
 export function saveTrip(trip: Trip) {
-  const statement = db.prepareSync(`
+  const database = getDb();
+  const statement = database.prepareSync(`
     INSERT INTO trips (
       id, name, started_at, ended_at, duration_ms, moving_time_ms, 
       distance_meters, average_speed_mps, max_speed_mps, start_lat, start_lng, 
@@ -66,7 +73,7 @@ export function saveTrip(trip: Trip) {
   `);
 
   try {
-    db.withTransactionSync(() => {
+    database.withTransactionSync(() => {
       statement.executeSync([
         trip.id, trip.name, trip.startedAt, trip.endedAt, trip.durationMs, trip.movingTimeMs,
         trip.distanceMeters, trip.averageSpeedMps, trip.maxSpeedMps, trip.startLat, trip.startLng,
@@ -74,7 +81,7 @@ export function saveTrip(trip: Trip) {
         trip.highestAltitudeMeters, trip.lowestAltitudeMeters
       ]);
 
-      const insertPoint = db.prepareSync(`
+      const insertPoint = database.prepareSync(`
         INSERT INTO track_points (
           id, trip_id, timestamp, latitude, longitude, speed_mps, 
           accuracy_meters, altitude_meters, heading_degrees, segment
@@ -96,7 +103,8 @@ export function saveTrip(trip: Trip) {
 }
 
 export function getTrips(): TripMeta[] {
-  const rows = db.getAllSync<{
+  const database = getDb();
+  const rows = database.getAllSync<{
     id: string; name: string; started_at: number; ended_at: number; duration_ms: number;
     moving_time_ms: number; distance_meters: number; average_speed_mps: number; max_speed_mps: number;
     start_lat: number; start_lng: number; end_lat: number; end_lng: number; point_count: number;
@@ -127,7 +135,8 @@ export function getTrips(): TripMeta[] {
 }
 
 export function getTrip(id: string): Trip | null {
-  const tripMeta = db.getFirstSync<{
+  const database = getDb();
+  const tripMeta = database.getFirstSync<{
     id: string; name: string; started_at: number; ended_at: number; duration_ms: number;
     moving_time_ms: number; distance_meters: number; average_speed_mps: number; max_speed_mps: number;
     start_lat: number; start_lng: number; end_lat: number; end_lng: number; point_count: number;
@@ -137,7 +146,7 @@ export function getTrip(id: string): Trip | null {
 
   if (!tripMeta) return null;
 
-  const pointsRows = db.getAllSync<{
+  const pointsRows = database.getAllSync<{
     timestamp: number; latitude: number; longitude: number; speed_mps: number;
     accuracy_meters: number | null; altitude_meters: number | null; heading_degrees: number | null; segment: number;
   }>(`SELECT * FROM track_points WHERE trip_id = ? ORDER BY timestamp ASC`, [id]);
@@ -177,15 +186,15 @@ export function getTrip(id: string): Trip | null {
 }
 
 export function deleteTrip(id: string) {
-  db.runSync(`DELETE FROM trips WHERE id = ?`, [id]);
+  getDb().runSync(`DELETE FROM trips WHERE id = ?`, [id]);
 }
 
 export function saveDraft(draft: any) {
-  db.runSync(`INSERT OR REPLACE INTO drafts (id, data) VALUES (?, ?)`, ['draft', JSON.stringify(draft)]);
+  getDb().runSync(`INSERT OR REPLACE INTO drafts (id, data) VALUES (?, ?)`, ['draft', JSON.stringify(draft)]);
 }
 
 export function getDraft(): any | null {
-  const row = db.getFirstSync<{ data: string }>(`SELECT data FROM drafts WHERE id = 'draft'`);
+  const row = getDb().getFirstSync<{ data: string }>(`SELECT data FROM drafts WHERE id = 'draft'`);
   if (!row) return null;
   try {
     return JSON.parse(row.data);
@@ -195,5 +204,5 @@ export function getDraft(): any | null {
 }
 
 export function deleteDraft() {
-  db.runSync(`DELETE FROM drafts WHERE id = 'draft'`);
+  getDb().runSync(`DELETE FROM drafts WHERE id = 'draft'`);
 }

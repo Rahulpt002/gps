@@ -28,12 +28,33 @@ export default function Index() {
     tracking.trackPoints
   );
 
+  const [initialPosition, setInitialPosition] = useState<{latitude: number; longitude: number} | null>(null);
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.getForegroundPermissionsAsync();
       setForegroundStatus(status);
     })();
   }, []);
+
+  // Keep a live preview position while not tracking so the map shows where you are.
+  useEffect(() => {
+    if (foregroundStatus !== Location.PermissionStatus.GRANTED) return;
+    let sub: Location.LocationSubscription | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const last = await Location.getLastKnownPositionAsync();
+        if (last && !cancelled) setInitialPosition({ latitude: last.coords.latitude, longitude: last.coords.longitude });
+        sub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 2 },
+          (loc) => setInitialPosition({ latitude: loc.coords.latitude, longitude: loc.coords.longitude }),
+        );
+        if (cancelled) sub.remove();
+      } catch (e) {}
+    })();
+    return () => { cancelled = true; sub?.remove(); };
+  }, [foregroundStatus]);
 
   const requestPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -96,7 +117,7 @@ export default function Index() {
       <View style={styles.mapContainer}>
         <TrackingMap 
           points={tracking.trackPoints}
-          currentPosition={tracking.trackPoints[tracking.trackPoints.length - 1] ?? null}
+          currentPosition={tracking.trackPoints[tracking.trackPoints.length - 1] ?? (initialPosition ? { ...initialPosition, timestamp: Date.now(), speed: 0, accuracy: null, altitude: null, heading: null, segment: 0 } as any : null)}
           isTracking={tracking.isTracking}
           autoFollow={autoFollow}
           onAutoFollowChange={setAutoFollow}
@@ -136,6 +157,19 @@ export default function Index() {
           <Text style={styles.secondaryButtonText}>Enable Background Tracking</Text>
         </TouchableOpacity>
       )}
+
+      <View style={styles.bottomNav}>
+        <Link href="/trips" asChild>
+          <TouchableOpacity style={styles.navButton}>
+            <Text style={styles.navButtonText}>Trip History</Text>
+          </TouchableOpacity>
+        </Link>
+        <Link href="/settings" asChild>
+          <TouchableOpacity style={styles.navButton}>
+            <Text style={styles.navButtonText}>Settings</Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
     </View>
   );
 }
@@ -246,6 +280,23 @@ const styles = StyleSheet.create({
   },
   link: {
     color: '#208AEF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 'auto',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  navButton: {
+    padding: 12,
+  },
+  navButtonText: {
+    color: '#aaa',
     fontSize: 16,
     fontWeight: 'bold',
   }
