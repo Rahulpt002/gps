@@ -164,8 +164,8 @@ export const ElevationChart = memo(function ElevationChart({ points, selection, 
         >
           <defs>
             <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1={geom.baseline} x2="0" y2={PAD.top}>
-              <stop offset="0%" stopColor="hsl(32, 80%, 45%)" />
-              <stop offset="100%" stopColor="hsl(120, 60%, 50%)" />
+              <stop offset="0%" stopColor="#9d4dff" />
+              <stop offset="100%" stopColor="#00f0ff" />
             </linearGradient>
           </defs>
 

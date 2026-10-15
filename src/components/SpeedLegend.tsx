@@ -9,7 +9,7 @@ export const SpeedLegend = memo(function SpeedLegend({ unit }: { unit: SpeedUnit
       <ul className="legend__list">
         {getLegendItems(unit).map((item) => (
           <li key={item.key} className="legend__item">
-            <span className="legend__swatch" style={{ background: item.color }} aria-hidden="true" />
+            <span className="legend__swatch" style={{ background: item.color, color: item.color }} aria-hidden="true" />
             {item.label}
           </li>
         ))}
