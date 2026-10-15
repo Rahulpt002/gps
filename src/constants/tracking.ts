@@ -77,11 +77,11 @@ export const SPEED_THRESHOLDS_KMH: Record<Exclude<SpeedCategoryKey, 'slow'>, num
 };
 
 export const SPEED_COLORS: Record<SpeedCategoryKey, string> = {
-  slow: '#2ee6a0',
-  moderate: '#d8f04a',
-  fast: '#ffb340',
-  veryFast: '#ff5a6e',
-  extreme: '#c26bff',
+  slow: '#39ff88',
+  moderate: '#00f0ff',
+  fast: '#ffe347',
+  veryFast: '#ff2bd6',
+  extreme: '#ff3d71',
 };
 
 const kmh = (v: number) => v / MPS_TO_KMH;

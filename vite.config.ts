@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => {
           name: 'GPS Speed Tracker',
           short_name: 'Speed Tracker',
           description: 'A modern, private GPS tracking app.',
-          theme_color: '#05070b',
-          background_color: '#05070b',
+          theme_color: '#07020f',
+          background_color: '#07020f',
           display: 'standalone',
           icons: [
             {

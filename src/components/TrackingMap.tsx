@@ -72,12 +72,12 @@ function style(key: string, make: () => L.PathOptions): L.PathOptions {
 const routeStyle = (color: string) =>
   style(`route:${color}`, () => ({ color, weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }));
 const dotStyle = (color: string) =>
-  style(`dot:${color}`, () => ({ color: '#05070b', weight: 1, fillColor: color, fillOpacity: 1 }));
+  style(`dot:${color}`, () => ({ color: '#07020f', weight: 1, fillColor: color, fillOpacity: 1 }));
 const ACCURACY_STYLE: L.PathOptions = {
-  color: '#3ab7ff',
+  color: '#ff2bd6',
   weight: 1,
   opacity: 0.6,
-  fillColor: '#3ab7ff',
+  fillColor: '#ff2bd6',
   fillOpacity: 0.08,
   dashArray: '4 4',
 };
